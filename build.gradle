@@ -1,0 +1,60 @@
+plugins {
+    // 1.21.11 is the last obfuscated Minecraft version -> the "-remap" Loom plugin
+    id 'net.fabricmc.fabric-loom-remap' version "${loom_version}"
+}
+
+version = project.mod_version
+group = 'com.farmbuilder'
+
+base {
+    archivesName = 'FarmBuilder'
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+// ---------------------------------------------------------------------------------------------
+// The original FarmBuilder is only available as compiled classes (legacy/classes). They are already
+// in Minecraft's "intermediary" naming, so they must NOT go through Loom's remapper. We therefore let
+// Loom build + remap only the NEW code (src/main), then merge the untouched legacy classes into the
+// final jar. New classes win if a path ever exists in both.
+// ---------------------------------------------------------------------------------------------
+tasks.register('modJar', Jar) {
+    group = 'build'
+    description = 'Final mod jar: remapped new code + original FarmBuilder classes + Baritone (jar-in-jar)'
+    dependsOn tasks.named('remapJar')
+
+    destinationDirectory = layout.buildDirectory.dir('dist')
+    archiveFileName = "FarmBuilder-${project.version}.jar"
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    from({ zipTree(tasks.named('remapJar').get().archiveFile.get().asFile) }) {
+        exclude 'META-INF/MANIFEST.MF'
+    }
+    from(layout.projectDirectory.dir('legacy/classes'))
+
+    manifest {
+        attributes(
+            'Implementation-Title': 'FarmBuilder',
+            'Implementation-Version': project.version
+        )
+    }
+}
+
+tasks.named('build') {
+    dependsOn tasks.named('modJar')
+}

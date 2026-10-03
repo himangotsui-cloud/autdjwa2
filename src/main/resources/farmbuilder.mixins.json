@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "package": "com.farmbuilder.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ClientPlayerEntityMixin",
+    "AutoBuildCoreMixin",
+    "AutoOrderEngineMixin",
+    "AutoEatEngineMixin",
+    "AutoTotemEngineMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

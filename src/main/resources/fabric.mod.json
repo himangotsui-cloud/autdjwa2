@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "farmbuilder",
+  "version": "1.0.0",
+  "name": "FarmBuilder Client",
+  "description": "Autonomous farm builder client. Survival: normal. Singleplayer creative: blocks come from the creative menu. Load Litematica (.litematic), Sponge (.schem) or structure (.nbt) schematics.",
+  "authors": ["BeatrixShop"],
+  "contact": {},
+  "license": "All-Rights-Reserved",
+  "icon": "assets/farmbuilder/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.farmbuilder.FarmBuilderClient",
+      "com.farmbuilder.ext.FarmBuilderExt"
+    ]
+  },
+  "mixins": ["farmbuilder.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.19.0",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  },
+  "jars": [
+    { "file": "META-INF/jars/baritone-api-fabric-1.15.0.jar" }
+  ]
+}
