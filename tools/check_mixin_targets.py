@@ -47,7 +47,7 @@ TARGETS = {
         ("ensureItemInHand", "(Lnet/minecraft/class_310;Lnet/minecraft/class_1792;)Z"),
         ("countItemInInventory", "(Lnet/minecraft/class_310;Ljava/lang/String;)I")],
     "com/farmbuilder/order/AutoOrderEngine": [
-        ("startOrder", "(Ljava/lang/String;II)V"), ("startSellBuckets", "()V")],
+        ("startOrder", "(Ljava/lang/String;II)V"), ("startSellBuckets", "()V"), ("isBusy", "()Z")],
     "com/farmbuilder/safety/AutoEatEngine": [("tick", "(Lnet/minecraft/class_310;Z)Z")],
     "com/farmbuilder/safety/AutoTotemEngine": [("tick", "(Lnet/minecraft/class_310;Z)V")],
 }

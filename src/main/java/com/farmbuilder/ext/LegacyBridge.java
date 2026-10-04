@@ -26,4 +26,16 @@ public final class LegacyBridge {
             return en;
         }
     }
+
+    /** Sets a public boolean field of the original ModConfig and saves it (e.g. "autoOrder"). */
+    public static void setConfigBoolean(String field, boolean value) {
+        try {
+            Class<?> cfg = Class.forName("com.farmbuilder.config.ModConfig");
+            Object inst = cfg.getMethod("get").invoke(null);
+            cfg.getField(field).setBoolean(inst, value);
+            cfg.getMethod("save").invoke(null);
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            System.err.println("[FarmBuilder] Could not set ModConfig." + field + ": " + e);
+        }
+    }
 }
