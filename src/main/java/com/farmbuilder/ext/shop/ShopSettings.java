@@ -15,9 +15,11 @@ public final class ShopSettings {
             "not enough", "can't afford", "cannot afford", "insufficient", "don't have enough",
             "do not have enough", "need more money", "không đủ", "khong du", "thiếu tiền",
             "inventory is full", "inventory full", "no space", "túi đồ đầy");
-    public int maxScreens = 120;
-    public int maxActions = 900;
-    public int maxTicks = 20 * 240;
+    public int maxScreens = 60;
+    public int maxActions = 400;
+    public int maxTicks = 20 * 120;
+    /** How many times the brain may send the shop command in one job (stops open/close loops). */
+    public int maxOpens = 25;
     public int settleMinTicks = 3;
     public int waitMaxTicks = 40;
     public int maxDepth = 3;

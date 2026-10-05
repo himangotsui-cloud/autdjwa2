@@ -50,6 +50,13 @@ isn't handled, run `/farmshop scan` and send that file.
 Settings (`shopCommand`, `balanceCommand`, `shopMaxSpend`, `shopRetryCooldownSec`, ...) are in `config/farmbuilder-ext.properties`.
 Prices must be written in the item's lore (e.g. `Price: $12`), which is how almost every shop plugin shows them.
 
+### Stopping the shop bot
+
+* Press **Esc** or **Delete** (configurable: `shopStopKey`) at any time - it stops immediately **and turns Shop mode off**, so the builder can't start it again.
+* Turning the Shop toggle off, `/farmshop off` and `/farmshop stop` do the same.
+* Limits so it can never run away: 2 minutes and 25 `/shop` openings per job; after 3 failed jobs in a row (`shopMaxFailures`) Shop mode switches itself off.
+* While it works, chat shows each menu it opens ("Menu ...: 21 items, 21 with a price"). "no prices recognised" means this server writes prices differently - send `logs/farmshop-scan.txt`.
+
 Self-test with simulated shops: `python3 tools/run_shop_tests.py`.
 
 ## Building

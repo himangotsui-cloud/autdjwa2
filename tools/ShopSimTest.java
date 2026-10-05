@@ -26,6 +26,7 @@ public class ShopSimTest {
         boolean flat = false;
         boolean balReplies = true;
         boolean closeOnBuy = false;
+        boolean noPriceLore = false, noLoreAtAll = false, headItems = false, labelBuy = false, noOpen = false, closeOnAnyClick = false;
         int invLimit = Integer.MAX_VALUE;
         int latency = 0;
 
@@ -88,6 +89,7 @@ public class ShopSimTest {
         void command(String c) {
             commands++;
             if (c.equals("shop")) {
+                if (noOpen) return;                         // server ignores the command
                 windowId++;
                 if (flat) { view = "flat"; page = 0; title = "Shop"; } else { view = "root"; title = "Shop"; }
             } else if (c.equals("bal") && balReplies) {
@@ -100,6 +102,7 @@ public class ShopSimTest {
         void click(int slot, boolean shift) {
             clicks++;
             if (windowId == 0) return;
+            if (closeOnAnyClick) { close(); return; }
             switch (view) {
                 case "root": {
                     List<String> names = new ArrayList<>(categories.keySet());
@@ -172,7 +175,10 @@ public class ShopSimTest {
                         int i = page * per + k;
                         if (i >= list.size()) break;
                         Product p = list.get(i);
-                        s.add(new ShopSlot(POS[k], p.id, "§f" + p.display, List.of("§7Price: §a$" + fmt(p.price) + " each", "§eClick to buy"), 1));
+                        List<String> lore = noLoreAtAll ? List.<String>of() : noPriceLore ? List.of("§eClick to buy")
+                                : labelBuy ? List.of("§7Buy: §a" + fmt(p.price), "§eClick")
+                                : List.of("§7Price: §a$" + fmt(p.price) + " each", "§eClick to buy");
+                        s.add(new ShopSlot(POS[k], headItems ? "player_head" : p.id, "§f" + p.display, lore, 1));
                     }
                     if ((page + 1) * per < list.size()) s.add(new ShopSlot(53, "arrow", "§eNext Page §7(" + (page + 2) + ")", List.of(), 1));
                     s.add(new ShopSlot(45, "arrow", "§eBack", List.of(), 1));
@@ -323,6 +329,31 @@ public class ShopSimTest {
           s.chat.clear(); Outcome o = drive(s, buy("cobblestone", 20, 0, null), "cobblestone");
           check("P server says inventory full: stops instead of looping", o.finished && !o.ok && s.count("cobblestone") == 5, o.message + " have=" + s.count("cobblestone")); }
 
+        // ---- Q..W: the situations that bit a real player -----------------------------------------------------------------
+        { FakeShop s = new FakeShop(100000); s.noPriceLore = true;
+          Outcome o = drive(s, buy("obsidian", 3, 0, null), "obsidian");
+          check("Q prices NOT recognised in lore: second-chance pass still finds and buys it", o.ok && s.count("obsidian") == 3, o.message + " have=" + s.count("obsidian")); }
+        { FakeShop s = new FakeShop(100000); s.noLoreAtAll = true;
+          Outcome o = drive(s, buy("obsidian", 3, 0, null), "obsidian");
+          check("X items have NO lore at all (no price, no hint): still found within the budget", o.ok && s.count("obsidian") == 3 && !s.soldClicked, o.message + " have=" + s.count("obsidian") + " commands=" + s.commands); }
+        { FakeShop s = new FakeShop(100000); s.headItems = true;
+          Outcome o = drive(s, buy("obsidian", 4, 0, null), "obsidian");
+          check("R items shown as custom heads (player_head named 'Obsidian'): matched by name", o.ok && s.count("obsidian") == 4, o.message + " have=" + s.count("obsidian")); }
+        { FakeShop s = new FakeShop(100000); s.labelBuy = true;
+          Outcome o = drive(s, buy("piston", 2, 0, null), "piston");
+          check("S price written as 'Buy: 40' (no $ sign)", o.ok && s.count("piston") == 2 && s.money == 100000 - 80, o.message + " money=" + s.money); }
+        { FakeShop s = new FakeShop(100000); s.noOpen = true;
+          Outcome o = drive(s, buy("obsidian", 3, 0, null), "obsidian");
+          check("T /shop does nothing: gives up after a few tries (no endless spam)", o.finished && !o.ok && s.commands <= 6, o.message + " commands=" + s.commands); }
+        { FakeShop s = new FakeShop(100000); s.closeOnAnyClick = true;
+          Outcome o = drive(s, buy("obsidian", 3, 0, null), "obsidian");
+          check("U menu slams shut on every click: bounded, ends in failure", o.finished && !o.ok && s.commands <= 27 && o.ticks < 2400, o.message + " commands=" + s.commands + " ticks=" + o.ticks); }
+        { FakeShop s = new FakeShop(100000); Outcome o = drive(s, buy("elytra", 1, 0, null), "elytra");
+          check("V item not sold: stays within /shop-open budget", s.commands <= 27 && o.ticks < 2400, "commands=" + s.commands + " ticks=" + o.ticks); }
+        { FakeShop s = new FakeShop(100000);   // an unpriced category icon with the SAME item as the target must not be mistaken for the product
+          Outcome o = drive(s, buy("grass_block", 2, 0, null), "grass_block");
+          check("W category icon looks like the item: still buys the real, priced product", o.ok && s.count("grass_block") == 2 && s.money == 100000 - 4, o.message + " money=" + s.money); }
+
         // ---- N: the unexpected: shop opens a different menu when stale route replays ---------------------------------
         { FakeShop s = new FakeShop(100000); ShopCatalog cat = new ShopCatalog();
           cat.putIfAbsent("obsidian", "Obsidian", 50, List.of("grass_block|nonexistent", "<NEXT>"));      // wrong route
@@ -338,6 +369,7 @@ public class ShopSimTest {
         check("money 1,5 (decimal comma)", Money.parse("1,5") == 1.5, String.valueOf(Money.parse("1,5")));
         check("money '10 kills' is not 10k", Money.parse("10 kills") == 10, String.valueOf(Money.parse("10 kills")));
         check("price skips the sell line", Money.findPrice(List.of("§7Sell: §c$2", "§7Buy: §a$10")) == 10, String.valueOf(Money.findPrice(List.of("§7Sell: §c$2", "§7Buy: §a$10"))));
+        check("price 'Buy: 10' without a currency sign", Money.findPrice(List.of("§7Buy: §a10")) == 10, String.valueOf(Money.findPrice(List.of("§7Buy: §a10"))));
         check("price ignores 'buy 64'", Double.isNaN(Money.findPrice(List.of("§eClick to buy 64"))), "got a price");
         check("unit price: 'per stack' $640 -> $10 each", Money.unitPrice(List.of("§7Price: $640 per stack"), 1) == 10, String.valueOf(Money.unitPrice(List.of("§7Price: $640 per stack"), 1)));
         check("unit price: '$5 each'", Money.unitPrice(List.of("§7Price: $5 each"), 1) == 5, "x");

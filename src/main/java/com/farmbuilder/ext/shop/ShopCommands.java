@@ -52,6 +52,9 @@ public final class ShopCommands {
     public static void applyEnabled(boolean on) {
         ExtConfig.shopEnabled = on;
         ExtConfig.save();
+        if (!on) {
+            ShopEngine.stop();
+        }
         if (on) {
             // the builder only asks for materials when auto-order is on; shop mode replaces /order, so switch it on
             LegacyBridge.setConfigBoolean("autoOrder", true);

@@ -31,6 +31,11 @@ public final class ExtConfig {
     /** Write every menu the shop bot sees to logs/farmshop-scan.txt (useful when a server's shop is unusual). */
     public static volatile boolean shopDebugLog = true;
 
+    /** Pressing this key (or Esc) while the shop bot is working stops it AND turns Shop mode off. GLFW code, default Delete. */
+    public static volatile int shopStopKey = 261;
+    /** After this many failed shop jobs in a row, Shop mode switches itself off. */
+    public static volatile int shopMaxFailures = 3;
+
     private ExtConfig() {
     }
 
@@ -57,6 +62,8 @@ public final class ExtConfig {
             shopMaxSpend = parseDouble(p.getProperty("shopMaxSpend", "0"));
             shopRetryCooldownSec = (int) parseDouble(p.getProperty("shopRetryCooldownSec", "120"));
             shopDebugLog = Boolean.parseBoolean(p.getProperty("shopDebugLog", "true"));
+            shopStopKey = (int) parseDouble(p.getProperty("shopStopKey", "261"));
+            shopMaxFailures = (int) parseDouble(p.getProperty("shopMaxFailures", "3"));
         } catch (IOException e) {
             System.err.println("[FarmBuilder] Could not read " + f + ": " + e.getMessage());
         }
@@ -77,6 +84,8 @@ public final class ExtConfig {
             p.setProperty("shopMaxSpend", Double.toString(shopMaxSpend));
             p.setProperty("shopRetryCooldownSec", Integer.toString(shopRetryCooldownSec));
             p.setProperty("shopDebugLog", Boolean.toString(shopDebugLog));
+            p.setProperty("shopStopKey", Integer.toString(shopStopKey));
+            p.setProperty("shopMaxFailures", Integer.toString(shopMaxFailures));
             try (OutputStream out = Files.newOutputStream(f)) {
                 p.store(out, "FarmBuilder extensions");
             }

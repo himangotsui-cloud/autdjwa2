@@ -104,6 +104,22 @@ public final class ShopBrain {
     private Route analyzed;
     private int stepIdx;
     private int openFailures;
+    private int opens;
+
+    // "second chance" pass: if nothing priced matched, accept an unpriced slot holding the item
+    private static final class Seen {
+        final List<String> route;
+        final ShopScreen screen;
+
+        Seen(List<String> route, ShopScreen screen) {
+            this.route = route;
+            this.screen = screen;
+        }
+    }
+
+    private final List<Seen> seen = new ArrayList<>();
+    private boolean lenient;
+    private boolean lenientTried;
 
     // buying
     private String buyKey = "";
@@ -285,6 +301,9 @@ public final class ShopBrain {
     }
 
     private ShopAction openShop() {
+        if (++opens > cfg.maxOpens) {
+            return fail("Opened /" + cfg.shopCommand + " " + cfg.maxOpens + " times without success - stopping so it doesn't spam.");
+        }
         phase = Phase.OPENING;
         actions++;
         startWait();
@@ -295,6 +314,17 @@ public final class ShopBrain {
 
     private ShopAction beginNextRoute() {
         Route r = poll();
+        if (r == null && mode == Mode.BUY && !lenientTried) {
+            lenientTried = true;
+            lenient = true;                                    // nothing priced matched: look again, price not required
+            for (Seen sn : seen) {
+                if (findTarget(sn.screen) != null) {
+                    queue.add(new Route(sn.route, Integer.MAX_VALUE, seq++));
+                    r = poll();
+                    break;
+                }
+            }
+        }
         if (r == null) {
             if (mode == Mode.SCAN) {
                 return succeed("Scan complete: " + screensSeen + " menus, "
@@ -346,6 +376,9 @@ public final class ShopBrain {
             return fail("Stopped after " + cfg.maxScreens + " menus without finding it.");
         }
         analyzed = current;
+        if (seen.size() < 200) {
+            seen.add(new Seen(new ArrayList<>(current.steps), screen));
+        }
         if (listener != null) {
             listener.onScreen(current.steps, screen);
         }
@@ -358,6 +391,21 @@ public final class ShopBrain {
         }
         if (mode == Mode.BUY) {
             ShopSlot t = findTarget(screen);
+            if (t == null && !lenient) {
+                // no recognisable price, but the item is there and its lore says "click to buy": it is the product
+                int gridSize = 0;                       // items shown that are not borders / buttons
+                for (ShopSlot x : screen.slots) {
+                    if (!ItemHints.isExcludedNav(x)) gridSize++;
+                }
+                for (ShopSlot x : screen.slots) {
+                    // "click to buy" lore, or simply sitting in a big grid of items (a listing, not a row of category icons)
+                    if (x.itemId.equals(target) && (x.looksPurchasable() || gridSize >= 8)) {
+                        lenient = true;
+                        t = findTarget(screen);
+                        break;
+                    }
+                }
+            }
             if (t != null) {
                 return beginBuy(t);
             }
@@ -368,10 +416,17 @@ public final class ShopBrain {
             push(appended(current.steps, NEXT), Integer.MAX_VALUE / 2);
         }
         if (current.depth() < cfg.maxDepth) {
+            List<ShopSlot> navs = new ArrayList<>();
             for (ShopSlot s : screen.slots) {
-                if (s.isProduct() || ItemHints.isExcludedNav(s)) continue;
+                if (s.isProduct() || s.looksPurchasable() || ItemHints.isExcludedNav(s)) continue;
+                navs.add(s);
+            }
+            // a big grid of unpriced items is a product listing, not a menu of categories: only follow slots
+            // whose name says they are a category
+            boolean grid = navs.size() > 14;
+            for (ShopSlot s : navs) {
                 int score = ItemHints.navScore(target, s);
-                if (score >= 0) {
+                if (score >= (grid ? 20 : 0)) {
                     push(appended(current.steps, s.key()), score);
                 }
             }
@@ -500,12 +555,26 @@ public final class ShopBrain {
 
     // ---- helpers ----------------------------------------------------------------------------
 
-    /** A priced slot holding the wanted item. Unpriced copies are previews / category icons, not products. */
+    /**
+     * The slot to buy. Normally it must carry a price (unpriced copies are previews or category icons) and
+     * match the item by id or by display name (shops that show items as custom heads still name them).
+     * In the second-chance pass an unpriced slot holding exactly that item is accepted too.
+     */
     private ShopSlot findTarget(ShopScreen s) {
+        String wanted = letters(target);
         for (ShopSlot x : s.slots) {
-            if (x.itemId.equals(target) && x.isProduct()) return x;
+            if (x.isProduct() && (x.itemId.equals(target) || letters(x.name).equals(wanted))) return x;
+        }
+        if (lenient) {
+            for (ShopSlot x : s.slots) {
+                if (x.itemId.equals(target) && !x.isFiller() && !ItemHints.isNext(x) && !ItemHints.isPrev(x)) return x;
+            }
         }
         return null;
+    }
+
+    private static String letters(String v) {
+        return v == null ? "" : Money.stripColors(v).toLowerCase(Locale.ROOT).replaceAll("[^a-z]", "");
     }
 
     private ShopSlot findNext(ShopScreen s) {

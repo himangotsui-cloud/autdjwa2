@@ -42,6 +42,9 @@ public final class ShopEngine {
     private static int emptyScreenTicks;
     private static PrintWriter scanLog;
     private static final Map<String, Long> COOLDOWN = new HashMap<>();
+    private static volatile boolean stopRequested;
+    private static int consecutiveFailures;
+    private static int menusReported;
 
     private ShopEngine() {
     }
@@ -92,7 +95,12 @@ public final class ShopEngine {
         ShopCatalog fresh = new ShopCatalog();
         fresh.server = serverKey(c);
         catalog = fresh;
-        start(c, new ShopBrain(ShopBrain.Mode.SCAN, null, 0, 0, settings(), fresh, listener()));
+        ShopSettings scanCfg = settings();
+        scanCfg.maxScreens = 300;
+        scanCfg.maxActions = 2000;
+        scanCfg.maxTicks = 20 * 600;
+        scanCfg.maxOpens = 120;
+        start(c, new ShopBrain(ShopBrain.Mode.SCAN, null, 0, 0, scanCfg, fresh, listener()));
         say("§6[AutoShop] §f" + LegacyBridge.tr("Đang quét toàn bộ /", "Scanning the whole /") + ExtConfig.shopCommand + "...");
     }
 
@@ -108,10 +116,23 @@ public final class ShopEngine {
         request(id, have + amount, have);
     }
 
+    /** Stops any running job and turns Shop mode OFF so the builder cannot start it again by itself. */
     public static void stop() {
-        if (isBusy()) {
+        boolean wasBusy = isBusy();
+        if (wasBusy) {
             finish(MinecraftClient.getInstance(), false, LegacyBridge.tr("Đã dừng.", "Stopped."), false);
         }
+        if (ExtConfig.shopEnabled) {
+            ExtConfig.shopEnabled = false;
+            ExtConfig.save();
+            say("§e[AutoShop] " + LegacyBridge.tr("Đã TẮT chế độ Shop. Bật lại bằng menu hoặc /farmshop on.",
+                    "Shop mode switched OFF. Turn it back on in the menu or with /farmshop on."));
+        }
+    }
+
+    /** Safe to call from the key-press callback; the next tick performs the stop. */
+    public static void requestStop() {
+        stopRequested = true;
     }
 
     public static String statusLine() {
@@ -131,6 +152,13 @@ public final class ShopEngine {
     // =========================================================================================
 
     public static void tick(MinecraftClient c) {
+        if (stopRequested) {
+            stopRequested = false;
+            if (isBusy()) {
+                stop();
+                return;
+            }
+        }
         ShopBrain b = brain;
         if (b == null || b.isFinished()) {
             return;
@@ -186,6 +214,8 @@ public final class ShopEngine {
     private static void start(MinecraftClient c, ShopBrain b) {
         brain = b;
         emptyScreenTicks = 0;
+        menusReported = 0;
+        stopRequested = false;
         catalogSizeAtStart = catalog == null ? 0 : catalog.items.size();
         openScanLog(b);
     }
@@ -206,13 +236,22 @@ public final class ShopEngine {
             }
         }
         boolean failedByBrain = id != null && !ok && fromBrain;
-        if (id != null && ok) {
-            COOLDOWN.remove(id);
+        if (ok) {
+            consecutiveFailures = 0;
+            if (id != null) COOLDOWN.remove(id);
         } else if (failedByBrain) {
             COOLDOWN.put(id, System.currentTimeMillis() + ExtConfig.shopRetryCooldownSec * 1000L);
+            consecutiveFailures++;
         }
         say((ok ? "§a[AutoShop] §f" : "§c[AutoShop] §f") + msg
                 + (failedByBrain ? "§7 (" + LegacyBridge.tr("thử lại sau ", "will retry in ") + ExtConfig.shopRetryCooldownSec + "s)" : ""));
+        if (failedByBrain && consecutiveFailures >= Math.max(1, ExtConfig.shopMaxFailures)) {
+            consecutiveFailures = 0;
+            ExtConfig.shopEnabled = false;
+            ExtConfig.save();
+            say("§c[AutoShop] " + LegacyBridge.tr("Thất bại nhiều lần liên tiếp -> TỰ TẮT chế độ Shop. Gửi file logs/farmshop-scan.txt để chỉnh cho server của bạn.",
+                    "Failed several times in a row -> Shop mode switched itself OFF. Send logs/farmshop-scan.txt so it can be tuned for your server."));
+        }
     }
 
     private static ShopSettings settings() {
@@ -304,6 +343,13 @@ public final class ShopEngine {
 
     private static ShopBrain.Listener listener() {
         return (route, screen) -> {
+            if (menusReported++ < 6) {
+                int priced = 0;
+                for (ShopSlot x : screen.slots) if (x.isProduct()) priced++;
+                say("§7[AutoShop] " + LegacyBridge.tr("Menu \"", "Menu \"") + screen.title + "\": " + screen.slots.size()
+                        + " items, " + priced + LegacyBridge.tr(" có giá", " with a price")
+                        + (priced == 0 && !route.isEmpty() ? "§e  (no prices recognised here)" : ""));
+            }
             if (scanLog == null) {
                 return;
             }

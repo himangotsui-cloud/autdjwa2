@@ -45,6 +45,16 @@ public final class ShopSlot {
         return Money.findPrice(lore);
     }
 
+    /** Lore that says "click to buy / price / cost" (and is not about opening a category): a product, even with no parsable price. */
+    public boolean looksPurchasable() {
+        String l = Money.stripColors(String.join(" ", lore)).toLowerCase(Locale.ROOT);
+        boolean buyish = l.contains("buy") || l.contains("mua") || l.contains("purchase") || l.contains("price")
+                || l.contains("cost") || l.contains("giá");
+        boolean opens = l.contains("open") || l.contains("browse") || l.contains("category") || l.contains("view")
+                || l.contains("see ") || l.contains("xem");
+        return buyish && !opens;
+    }
+
     public boolean isProduct() {
         return !NOT_FOR_SALE.matcher(name).find() && !Double.isNaN(price());
     }

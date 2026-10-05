@@ -9,6 +9,8 @@ import java.util.regex.Pattern;
 public final class Money {
     private static final Pattern NUMBER = Pattern.compile("(\\d[\\d.,]*)(?:\\s?([kKmMbBtT])(?![a-zA-Z]))?");
     private static final Pattern AFTER_CURRENCY = Pattern.compile("[$¢₫đ]\\s?(\\d[\\d.,]*)(?:\\s?([kKmMbBtT])(?![a-zA-Z]))?");
+    private static final Pattern LABELLED = Pattern.compile(
+            "(?i)(buy|mua|cost|price|giá|purchase)\\s*(?:for|:|-|=|→|»)+\\s*\\D{0,3}(\\d[\\d.,]*)(?:\\s?([kKmMbBtT])(?![a-zA-Z]))?");
     private static final Pattern COLOR = Pattern.compile("(?i)§[0-9a-fk-orx]");
 
     private Money() {
@@ -89,6 +91,16 @@ public final class Money {
             if (containsAny(low, NOT_A_BUY_PRICE)) continue;
             if (containsAny(low, "buy", "mua") && AFTER_CURRENCY.matcher(low).find()) {
                 double v = parseCurrency(line);
+                if (!Double.isNaN(v)) return v;
+            }
+        }
+        // pass 3: "Buy: 10", "Cost - 25 coins": a label, a colon/dash, then the number (no currency symbol needed)
+        for (String line : lore) {
+            String low = stripColors(line).toLowerCase(Locale.ROOT);
+            if (containsAny(low, NOT_A_BUY_PRICE)) continue;
+            Matcher m = LABELLED.matcher(stripColors(line));
+            if (m.find()) {
+                double v = token(m.group(2), m.group(3));
                 if (!Double.isNaN(v)) return v;
             }
         }

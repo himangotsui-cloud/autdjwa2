@@ -24,6 +24,7 @@ public class FarmBuilderExt implements ClientModInitializer {
             ShopCommands.register(dispatcher);
         });
         ClientLifecycleEvents.CLIENT_STARTED.register(DropHandler::install);
+        ClientLifecycleEvents.CLIENT_STARTED.register(ShopStopKey::install);
 
         ClientTickEvents.END_CLIENT_TICK.register(ShopEngine::tick);
         ClientReceiveMessageEvents.GAME.register((message, overlay) -> ShopEngine.onChat(message.getString()));
